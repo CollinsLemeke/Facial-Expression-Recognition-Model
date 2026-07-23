@@ -1,4 +1,4 @@
-# 😊 Facial Expression Recognition with CNN
+# Facial Expression Recognition with CNN
 
 > **A convolutional neural network trained on the FER2013 dataset to classify facial expressions into 7 emotions from 48×48 grayscale face images.**
 
