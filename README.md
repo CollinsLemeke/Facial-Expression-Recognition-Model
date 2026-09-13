@@ -1,569 +1,517 @@
 # Facial Expression Recognition with CNN
 
-> **A convolutional neural network trained on the FER2013 dataset to classify facial expressions into 7 emotions from 48×48 grayscale face images.**
+> A convolutional neural network trained on the FER2013 dataset to sort 48x48 grayscale face images into 7 emotions.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-Keras-FF6F00)](https://www.tensorflow.org/)
 [![Kaggle](https://img.shields.io/badge/Kaggle-Notebook-20BEFF)](https://www.kaggle.com/code/collinslemeke/facial-expression-recognition-with-cnn)
 [![FER2013](https://img.shields.io/badge/Dataset-FER2013-8B5CF6)](https://www.kaggle.com/datasets/msambare/fer2013)
-[![Accuracy](https://img.shields.io/badge/Test%20Accuracy-66.15%25-success)](#results)
-[![Macro F1](https://img.shields.io/badge/Macro%20F1-0.620-success)](#results)
+[![Accuracy](https://img.shields.io/badge/Test%20Accuracy-66.45%25-success)](#results-in-detail)
+[![Macro F1](https://img.shields.io/badge/Macro%20F1-0.630-success)](#results-in-detail)
 [![License](https://img.shields.io/badge/License-MIT-lightgrey)](LICENSE)
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [The Seven Emotions](#the-seven-emotions)
-- [Dataset: FER2013](#dataset-fer2013)
-- [CNN Architecture](#cnn-architecture)
-- [Training Configuration](#training-configuration)
-- [Pipeline Walkthrough](#pipeline-walkthrough)
-  - [Step 1: Environment Setup and Data Quality Check](#step-1-environment-setup-and-data-quality-check)
-  - [Step 2: Data Generators and Preprocessing](#step-2-data-generators-and-preprocessing)
-  - [Step 3: Sample Visualisation](#step-3-sample-visualisation)
-  - [Step 4: Data Augmentation](#step-4-data-augmentation)
-  - [Step 5: Dataset Split Verification](#step-5-dataset-split-verification)
-  - [Step 6: CNN Model Architecture](#step-6-cnn-model-architecture)
-  - [Step 7: Compile and Callbacks](#step-7-compile-and-callbacks)
-  - [Step 8: Model Training](#step-8-model-training)
-  - [Step 9: Training Performance Analysis](#step-9-training-performance-analysis)
-  - [Step 10: Confusion Matrix and Metrics](#step-10-confusion-matrix-and-metrics)
-  - [Step 11: Test Set Evaluation](#step-11-test-set-evaluation)
-  - [Step 12: Qualitative Inference on 200 Random Images](#step-12-qualitative-inference-on-200-random-images)
-- [Key Design Decisions](#key-design-decisions)
-- [Results](#results)
-- [How to Reproduce](#how-to-reproduce)
-- [Repository Structure](#repository-structure)
+- [Start here: what this project actually is](#start-here-what-this-project-actually-is)
+- [Plain English glossary](#plain-english-glossary)
+- [Results at a glance](#results-at-a-glance)
+- [The seven emotions and the imbalance problem](#the-seven-emotions-and-the-imbalance-problem)
+- [The dataset: FER2013](#the-dataset-fer2013)
+- [The model](#the-model)
+- [Training setup](#training-setup)
+- [What the notebook does, cell by cell](#what-the-notebook-does-cell-by-cell)
+- [What actually happened during training](#what-actually-happened-during-training)
+- [Results in detail](#results-in-detail)
+- [Why accuracy on its own would mislead you](#why-accuracy-on-its-own-would-mislead-you)
+- [How this compares to published work](#how-this-compares-to-published-work)
+- [What the evidence does not support](#what-the-evidence-does-not-support)
+- [How to reproduce](#how-to-reproduce)
+- [Repository structure](#repository-structure)
 - [Dependencies](#dependencies)
-- [Limitations and Ethical Considerations](#limitations-and-ethical-considerations)
+- [Limitations and ethics](#limitations-and-ethics)
 - [Roadmap](#roadmap)
+- [Which run these numbers come from](#which-run-these-numbers-come-from)
 - [Author](#author)
 - [License](#license)
 
 ---
 
-## Overview
+## Start here: what this project actually is
 
-This project trains a **custom Convolutional Neural Network (CNN)** from scratch to classify facial expressions into **seven emotional categories** using the FER2013 dataset, a standard benchmark in affective computing and computer vision. The entire pipeline runs in a single Kaggle notebook, from raw dataset loading through to evaluation and qualitative inference on unseen test images.
+Imagine you have 35,887 small black and white photographs of faces. Each one has been given a label by a human: angry, disgusted, afraid, happy, neutral, sad, or surprised. The goal is to build a computer program that looks at a face it has never seen before and guesses which of those seven labels a human would have given it.
 
-The network is a classic three-block VGG-style architecture with batch normalisation, dropout regularisation, and a small dense head. It is trained end-to-end on 48×48 grayscale images with aggressive data augmentation to handle the class imbalance and limited resolution that make FER2013 a notoriously hard benchmark.
+That is the whole project. This repository contains one Kaggle notebook that does it end to end:
 
-The headline result is **66.15% test accuracy**, which sits inside the 65 ± 5% band reported for human annotators on this benchmark. The more useful number is **macro F1 of 0.620**, and the gap between the two is the point of this repository: on a dataset this skewed, an aggregate score conceals where the model actually fails. Every evaluation choice here is designed to surface that.
+1. Loads the images and checks none of them are broken
+2. Splits them into three piles: one to learn from, one to check progress on, one kept locked away for the final exam
+3. Builds a neural network from scratch
+4. Trains it for up to 55 rounds
+5. Measures how well it did, in several different ways, because one number is not enough
+6. Shows 200 random test images with the model's guesses so you can see the behaviour with your own eyes
 
-This notebook serves three purposes:
+**The headline result is 66.45% correct on the 7,178 unseen test images.** That sounds mediocre until you learn that humans score roughly 65% plus or minus 5% on this same dataset. The images are only 48 by 48 pixels, some of the labels are wrong, and telling fear apart from sadness at that resolution is genuinely hard for anyone.
 
-1. **A working FER2013 baseline** that can be extended with deeper architectures, transfer learning, or attention modules
-2. **A teaching reference** for anyone learning CNNs, showing every design decision (architecture, augmentation, callbacks, metrics) with clear justifications
-3. **A foundation** for downstream affective computing work such as real-time emotion recognition, mental health sentiment systems, and HCI research
+The more interesting number is **macro F1 of 0.630**, and the gap between those two figures is the real point of this repository. On a dataset where one emotion has 16 times more examples than another, a single overall score hides where the model is failing. Everything in the evaluation section is designed to expose that.
 
----
+**Who this is for:**
 
-## The Seven Emotions
-
-The model predicts one of seven discrete emotion classes, the standard Ekman-inspired set used across most facial expression datasets:
-
-| Label | Emotion | Train Samples | Test Samples | Ratio to Smallest |
-|-------|---------|---------------|--------------|-------------------|
-| 0 | **Angry** | 3,995 | 958 | 9.16 |
-| 1 | **Disgust** | 436 (minority) | 111 | 1.00 |
-| 2 | **Fear** | 4,097 | 1,024 | 9.40 |
-| 3 | **Happy** | 7,215 (majority) | 1,774 | 16.55 |
-| 4 | **Neutral** | 4,965 | 1,233 | 11.39 |
-| 5 | **Sad** | 4,830 | 1,247 | 11.08 |
-| 6 | **Surprise** | 3,171 | 831 | 7.27 |
-| | **Total** | **28,709** | **7,178** | |
-
-Notice the class imbalance: Happy has roughly **16.55× more training samples than Disgust**, and the test partition is skewed almost identically at 15.98×. This is a defining characteristic of FER2013 and it directly shapes the training strategy, the evaluation metrics, and the interpretation of confusion matrix patterns.
-
-**How much can that imbalance hide?** Because the test class proportions are public and fixed, the answer can be computed exactly rather than argued. Overall accuracy is the support-weighted mean of per-class recall, so the maximum accuracy attainable while a set of classes fails completely is `1 − (their combined share of the test set)`. Applying that to the three smallest classes — Angry, Disgust and Surprise — gives **73.53%**. A model that recognises no anger, no disgust and no surprise would still post 73.53%, which exceeds the 73.28% published for a tuned VGGNet on this benchmark. That is why this repository reports macro F1 and balanced accuracy alongside the headline figure.
+- Anyone learning how a CNN is built and trained, step by step, with reasons given for every choice
+- Anyone who wants a working FER2013 baseline to improve on
+- Anyone who needs a worked example of honest model evaluation on imbalanced data
 
 ---
 
-## Dataset: FER2013
+## Plain English glossary
 
-**Name:** FER2013 (Facial Expression Recognition 2013)
-**Origin:** Introduced for the ICML 2013 Challenges in Representation Learning
-**Total images:** 35,887
-**Resolution:** 48×48 pixels, grayscale
+If you are new to machine learning, these are the only terms you need to follow the rest of this README.
+
+| Term | What it means in plain English |
+|------|-------------------------------|
+| **CNN (convolutional neural network)** | A type of neural network built for images. It scans small patches of the picture looking for patterns, starting with simple edges and building up to whole-face features. |
+| **Training set** | The photos the model learns from. |
+| **Validation set** | Photos held aside to check progress during training. The model never learns from these, but they are used to decide when to stop. |
+| **Test set** | Photos locked away and used once, at the very end. This is the honest score. |
+| **Epoch** | One complete pass through all the training photos. This model ran 55 of them. |
+| **Accuracy** | Out of all test photos, what share did the model get right. Simple, but easily flattered by imbalanced data. |
+| **Recall** | Out of all the truly angry faces, what share did the model catch. Answers "what is it missing?" |
+| **Precision** | Out of all the faces the model called angry, what share really were angry. Answers "when it says angry, can I trust it?" |
+| **F1 score** | A single number combining precision and recall. Ranges 0 to 1, higher is better. |
+| **Macro F1** | The average F1 across all seven emotions, treating each emotion as equally important regardless of how many examples it has. This is the fairest single number here. |
+| **Balanced accuracy** | The average recall across all seven emotions. Tells you how the model does if every emotion mattered equally. |
+| **Confusion matrix** | A grid showing what the model predicted for each true emotion. The diagonal is correct answers, everything off the diagonal is a mistake, and the pattern of mistakes tells you a lot. |
+| **Class imbalance** | Some emotions have far more training photos than others. Happy has 7,215, disgust has 436. |
+| **Overfitting** | The model memorises the training photos instead of learning general patterns, so it does well in practice and badly in the exam. |
+| **Data augmentation** | Randomly rotating, zooming and flipping training images so the model sees more variety and memorises less. |
+
+---
+
+## Results at a glance
+
+| Measure | Value | What it tells you |
+|---------|-------|-------------------|
+| **Test accuracy** | **66.45%** | Share of the 7,178 unseen images classified correctly |
+| 95% confidence interval | 65.36% to 67.55% | The range the true figure plausibly sits in |
+| Test loss | 0.9347 | Technical measure of how wrong the model's confidence was |
+| **Macro F1** | **0.6302** | The fair, per-emotion-weighted score |
+| Weighted F1 | 0.6597 | F1 weighted by how common each emotion is |
+| Macro precision | 0.6650 | Average trustworthiness of a prediction |
+| Balanced accuracy (macro recall) | 0.6183 | Average catch rate across the seven emotions |
+
+**Reading this in plain English:** the model gets about two out of three faces right overall. But if you gave it an exam with equal numbers of every emotion, it would score about 62%, not 66%. That 4.6 point difference is the part of the headline number that comes from the test set being full of easy, plentiful happy faces rather than from real skill spread evenly across the task.
+
+---
+
+## The seven emotions and the imbalance problem
+
+| Label | Emotion | Training images | Test images |
+|-------|---------|-----------------|-------------|
+| 0 | Angry | 3,995 | 958 |
+| 1 | **Disgust (rarest)** | 436 | 111 |
+| 2 | Fear | 4,097 | 1,024 |
+| 3 | **Happy (most common)** | 7,215 | 1,774 |
+| 4 | Neutral | 4,965 | 1,233 |
+| 5 | Sad | 4,830 | 1,247 |
+| 6 | Surprise | 3,171 | 831 |
+| | **Total** | **28,709** | **7,178** |
+
+Happy has **16.55 times more training images than disgust**. The test set is skewed almost identically, at 15.98 times.
+
+This matters more than it sounds. A model can quietly ignore disgust entirely and barely dent its accuracy score, because disgust is only 1.5% of the test set. That is why this project reports macro F1 and balanced accuracy alongside accuracy, and why the evaluation digs into each emotion separately.
+
+These counts were verified by the notebook itself, which walked every folder and opened every file. It found **zero corrupted images** in both the training and test directories.
+
+---
+
+## The dataset: FER2013
+
+**Full name:** Facial Expression Recognition 2013
+**Origin:** Created for the ICML 2013 Challenges in Representation Learning
+**Size:** 35,887 images, 48x48 pixels, grayscale
 **Kaggle path:** `/kaggle/input/fer2013/`
 
-The dataset is pre-partitioned into two directories:
+The folders look like this:
 
 ```
 fer2013/
-├── train/     # 28,709 images — used for training and validation
-│   ├── angry/
-│   ├── disgust/
-│   ├── fear/
-│   ├── happy/
-│   ├── neutral/
-│   ├── sad/
-│   └── surprise/
-└── test/      # 7,178 images — held out for final evaluation
-    ├── angry/
-    ├── disgust/
-    ├── fear/
-    ├── happy/
-    ├── neutral/
-    ├── sad/
-    └── surprise/
+├── train/     28,709 images
+│   ├── angry/  disgust/  fear/  happy/  neutral/  sad/  surprise/
+└── test/       7,178 images
+    ├── angry/  disgust/  fear/  happy/  neutral/  sad/  surprise/
 ```
 
-### Split Strategy
+### How the data was split
 
-This notebook uses a **three-way split**:
+| Pile | Images | Share of total | Where it came from |
+|------|--------|----------------|--------------------|
+| Training | 22,968 | 64.0% | 80% of the `/train` folder |
+| Validation | 5,741 | 16.0% | 20% of the `/train` folder |
+| Test | 7,178 | 20.0% | The entire `/test` folder, untouched |
 
-- **Train** (80% of `/train`) — 22,968 images, used to fit the model
-- **Validation** (20% of `/train`) — 5,741 images, used for callbacks and early stopping
-- **Test** (full `/test` directory) — 7,178 images, held out for final evaluation
+The 80/20 split is applied inside each emotion folder separately, so the mix of emotions stays the same in both piles.
 
-That is 64.0 / 16.0 / 20.0% of the full dataset. The split is applied **within each class directory**, so class proportions are preserved in both streams and validation is not distributionally different from training. Validation and test images originate from physically distinct source directories, which makes disjointness structural rather than probabilistic. A sanity check at Step 5 verifies programmatically that the file overlap is zero.
+The important part: **validation and test images come from physically different folders.** They cannot overlap by accident. The notebook still checks this programmatically and prints the result, which was **0 files in common**, exactly as expected.
 
-### Known Dataset Caveats
+### Known problems with this dataset
 
-FER2013 is an imperfect but widely-used benchmark. Known issues:
+Be aware of these before drawing conclusions from any FER2013 result:
 
-- A non-trivial number of mislabelled images (~3–5% estimated)
-- Low resolution (48×48) that limits achievable accuracy ceiling
-- Class imbalance skewed toward Happy and away from Disgust
-- Some non-face images that slipped through web scraping
-- Human performance on FER2013 is approximately **65 ± 5% accuracy**, which places a realistic upper bound on any model
-- **No demographic annotation whatsoever.** The dataset carries no age, gender or ethnicity labels, so the disparity metrics the fairness literature requires cannot be computed on it at all
-
-These caveats are why this notebook reports **macro F1** alongside accuracy. Accuracy alone hides failure on minority classes.
+- **Low resolution.** At 48x48 pixels, some expressions are genuinely indistinguishable. This caps what any model can achieve.
+- **Wrong labels.** A commonly cited estimate in the literature is that roughly 3 to 5% of images are mislabelled. Part of the model's error is therefore impossible to fix.
+- **Severe imbalance**, as described above.
+- **Some images are not faces at all.** The dataset was assembled by web scraping.
+- **Human performance is only about 65% plus or minus 5%** (Goodfellow et al., 2013), which is the realistic ceiling.
+- **No demographic labels whatsoever.** There is no record of age, gender or ethnicity, so it is impossible to check whether the model works equally well for different groups. This is a real gap, not a minor one.
 
 ---
 
-## CNN Architecture
+## The model
 
-A three-block VGG-style CNN, trained from scratch on grayscale 48×48 inputs.
+A three-block VGG-style CNN, built from scratch. No pretrained weights.
 
 ```
 Input (48, 48, 1)
 │
-├── Block 1 ────────────────────────────────────
-│   Conv2D(64, 3×3, padding=same, ReLU)
+├── Block 1
+│   Conv2D(64, 3x3, padding=same, ReLU)
 │   BatchNormalization
-│   Conv2D(64, 3×3, padding=same, ReLU)
+│   Conv2D(64, 3x3, padding=same, ReLU)
 │   BatchNormalization
-│   MaxPooling2D(2×2)      →  (24, 24, 64)
+│   MaxPooling2D(2x2)      ->  (24, 24, 64)
 │   Dropout(0.25)
 │
-├── Block 2 ────────────────────────────────────
-│   Conv2D(128, 3×3, padding=same, ReLU)
+├── Block 2
+│   Conv2D(128, 3x3, padding=same, ReLU)
 │   BatchNormalization
-│   Conv2D(128, 3×3, padding=same, ReLU)
+│   Conv2D(128, 3x3, padding=same, ReLU)
 │   BatchNormalization
-│   MaxPooling2D(2×2)      →  (12, 12, 128)
+│   MaxPooling2D(2x2)      ->  (12, 12, 128)
 │   Dropout(0.25)
 │
-├── Block 3 ────────────────────────────────────
-│   Conv2D(256, 3×3, padding=same, ReLU)
+├── Block 3
+│   Conv2D(256, 3x3, padding=same, ReLU)
 │   BatchNormalization
-│   Conv2D(256, 3×3, padding=same, ReLU)
+│   Conv2D(256, 3x3, padding=same, ReLU)
 │   BatchNormalization
-│   MaxPooling2D(2×2)      →  (6, 6, 256)
+│   MaxPooling2D(2x2)      ->  (6, 6, 256)
 │   Dropout(0.25)
 │
-└── Classifier Head ────────────────────────────
+└── Classifier head
     Flatten
     Dense(256, ReLU)
     BatchNormalization
     Dropout(0.5)
-    Dense(7, Softmax)      →  Output (7 classes)
+    Dense(7, Softmax)      ->  7 emotion probabilities
 ```
 
-**Why this architecture?**
+**Total parameters: 3,510,215** (3,507,911 trainable, 2,304 fixed batch normalisation statistics). That is about 13.4 MB, which fits comfortably on a free Kaggle T4 GPU.
 
-- **Progressive filter doubling (64 → 128 → 256):** Each block captures more abstract features as spatial dimensions shrink. Low-level edges in Block 1, local textures in Block 2, semantic emotion-relevant patterns in Block 3
-- **Padding=same:** Keeps spatial dimensions stable within a block, so only MaxPool reduces them. This gives the network more layers at each spatial scale
-- **BatchNorm after every Conv2D and Dense:** Accelerates training, stabilises gradients, and provides mild regularisation. Essential for training a CNN from scratch on a dataset this size
-- **Dropout 0.25 after conv blocks, 0.5 before the final dense layer:** Heavier dropout is applied where overfitting risk is highest (the fully connected head). Lighter dropout in conv blocks because BatchNorm already regularises them
-- **Dense(256) before the classifier:** Enough capacity to learn emotion-level abstractions without overwhelming the small 6×6×256 feature maps
+### Why it is built this way
 
-**Parameter count:** 3,510,215 total, of which 3,507,911 are trainable and 2,304 are non-trainable batch normalisation statistics. All of it fits comfortably on a free Kaggle T4 GPU.
-
----
-
-## Training Configuration
-
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| **Input shape** | 48 × 48 × 1 (grayscale) | FER2013 native resolution and colour depth |
-| **Batch size** | 64 (359 steps per epoch) | Standard for mid-size CNNs on T4 GPU |
-| **Max epochs** | 55 | Generous upper bound, early stopping usually halts sooner |
-| **Optimiser** | Adam (initial lr = 1×10⁻³) | Reliable default for image classification from scratch |
-| **Loss** | categorical_crossentropy | Standard for multi-class one-hot targets |
-| **Validation split** | 0.2 (20%), applied per class directory | Preserves class proportions in both streams |
-| **EarlyStopping** | patience=8 on val_loss, restore_best_weights=True | Stops training if val_loss doesn't improve for 8 epochs |
-| **ReduceLROnPlateau** | patience=4, factor=0.2 | Cuts learning rate by 5× if val_loss stalls for 4 epochs |
-| **Global seed** | 42, set before model construction | Fixes weight initialisation, shuffle order and augmentation draws |
-| **Hardware** | Kaggle, NVIDIA Tesla T4 | Free tier |
-
-### Data Augmentation
-
-Applied to the training set only (never to validation or test):
-
-- `rotation_range=20` — ±20° random rotation
-- `zoom_range=0.2` — random zoom up to 20%
-- `horizontal_flip=True` — random horizontal flip (faces are approximately symmetric so this doubles effective data)
-- `rescale=1./255` — normalise pixel values to [0, 1]
-
-No vertical flip (upside-down faces aren't a realistic deployment condition), no colour jitter (images are grayscale), no brightness adjustment (FER2013 already has wide brightness variation).
+- **Filters double each block (64, then 128, then 256).** Early layers spot simple things like edges. Later layers combine those into textures, then into whole facial arrangements. As the image shrinks through pooling, the number of pattern detectors grows to compensate.
+- **`padding='same'` keeps the image size steady inside each block.** Only the pooling layers shrink it. This gives the network two learning layers at each scale instead of one.
+- **Batch normalisation after every convolution.** This keeps the numbers flowing through the network in a sensible range, which makes training from scratch far more stable and faster.
+- **Dropout randomly switches off some connections during training.** It is set to 0.25 in the convolution blocks and a heavier 0.5 just before the final layer, because that final dense layer has the most parameters and therefore the most opportunity to memorise.
+- **A single Dense(256) layer before the output.** Enough capacity to combine features into emotion-level concepts without adding millions of parameters.
 
 ---
 
-## Pipeline Walkthrough
+## Training setup
 
-The notebook executes 12 clearly numbered steps. Below is a detailed walkthrough of each one.
+| Setting | Value | Why |
+|---------|-------|-----|
+| Input shape | 48 x 48 x 1 (grayscale) | The dataset's native format. Upscaling adds compute, not information. |
+| Batch size | 64 (359 steps per epoch) | Standard choice for a model this size on a T4 |
+| Max epochs | 55 | Generous upper limit |
+| Optimiser | Adam, starting learning rate 0.001 | Reliable default for image classification |
+| Loss function | categorical_crossentropy | Standard for multi-class problems |
+| Validation split | 0.2, applied within each emotion folder | Keeps the emotion mix identical in both piles |
+| EarlyStopping | patience 8 on validation loss, restore best weights | Stops if validation loss has not improved for 8 epochs, then rewinds to the best point |
+| ReduceLROnPlateau | patience 4, factor 0.2 | Cuts the learning rate to one fifth if validation loss stalls for 4 epochs |
+| Random seed | 42, set before the model is built | For reproducibility |
+| Hardware | Kaggle NVIDIA Tesla T4, free tier | |
 
----
+### Data augmentation
 
-### Step 1: Environment Setup and Data Quality Check
+Applied **only to the training images**, never to validation or test:
 
-**What it does:** Imports all required libraries (TensorFlow, NumPy, Matplotlib, Seaborn, PIL, scikit-learn) and runs a data quality inspection on both the train and test directories.
+- `rotation_range=20`: rotate by up to 20 degrees either way
+- `zoom_range=0.2`: zoom in or out by up to 20%
+- `horizontal_flip=True`: mirror left to right, which is realistic because faces are roughly symmetric
+- `rescale=1./255`: convert pixel values from 0 to 255 down to 0 to 1, which neural networks handle better
 
-The `check_data_quality` function:
-- Walks every class directory
-- Opens each image via PIL and calls `img.verify()` to detect corruption
-- Counts total images, corrupted images, and per-class sample counts
-- Reports any corrupted file paths that need removal before training
+Deliberately not used: vertical flipping (nobody is upside down in deployment), colour jitter (the images are grayscale), and brightness shifts (FER2013 already varies a lot in brightness).
 
-This upfront check prevents silent errors mid-training when `ImageDataGenerator` hits a bad file.
-
----
-
-### Step 2: Data Generators and Preprocessing
-
-**What it does:** Configures three `ImageDataGenerator` instances for train, validation, and test.
-
-The train generator reads from `/kaggle/input/fer2013/train` with `validation_split=0.1` initially (later re-configured to 0.2 in Step 4), grayscale colour mode, 48×48 target size, categorical class mode, and batch size 64. Images are rescaled from [0, 255] to [0, 1].
-
-The test generator reads from `/kaggle/input/fer2013/test` with no augmentation and `shuffle=False` to preserve ordering for evaluation.
-
----
-
-### Step 3: Sample Visualisation
-
-**What it does:** Pulls a single batch from the train generator and displays 10 sample images in a 2×5 grid with their emotion labels.
-
-This is a critical sanity check. You see the actual input the model will see (48×48 grayscale, possibly rotated or flipped by augmentation), and you can immediately spot:
-
-- Any label-image mismatches
-- The visual quality and resolution of the data
-- How different emotions look at this low resolution (harder than you'd think — Fear and Surprise often look similar, Sad and Neutral often blur together)
+Keeping validation and test clean matters. If you augmented them too, your scores would describe performance on distorted images rather than real ones.
 
 ---
 
-### Step 4: Data Augmentation
+## What the notebook does, cell by cell
 
-**What it does:** Rebuilds the data generators with full augmentation enabled and `validation_split=0.2` for the final configuration used during training.
+The notebook runs top to bottom in ten sections. If you are reading the code alongside this, the section headings match the markdown cells.
 
-Augmentation is applied only to the training stream. Validation and test streams remain clean (just rescaling), so evaluation metrics reflect true generalisation, not augmented performance.
+### 1. Import libraries and set the seed
 
-A split-visualisation cell then produces a **pie chart and stacked bar chart** showing the three-way split with per-set image counts and percentages, plus an annotation explaining that validation comes from `/train` (via split) while test comes from `/test` (native held-out).
+Loads TensorFlow, NumPy, Matplotlib, Seaborn and PIL, and calls `tf.keras.utils.set_random_seed(42)` before anything else, so weight initialisation and shuffling are repeatable.
 
----
+### 2. Data quality check
 
-### Step 5: Dataset Split Verification
+Walks every emotion folder, opens each image with PIL and calls `.verify()` to catch corruption, then prints the totals and per-class counts. This runs before training so a bad file cannot crash a 45 minute run halfway through. Result: **0 corrupted images** in both folders.
 
-**What it does:** Verifies split integrity programmatically:
+### 3. First data generators
 
-- Prints validation set composition (source directory, total images, per-class distribution)
-- Prints test set composition (same breakdown)
-- Computes the **file overlap** between validation and test file paths. Must be zero
+Sets up the image loaders at 48x48, grayscale, batch size 64. Note that this first version uses a 10% validation split (25,841 training and 2,868 validation images). It is superseded in section 5.
 
-If the overlap count is not zero, the split is broken and metrics would be invalid. This check ensures the test set is genuinely held out. In this run the overlap is **0**, as expected given the two sets come from physically distinct directories.
+### 4. Sample visualisation
 
----
+Pulls one batch and shows 10 images with their labels in a 2 by 5 grid.
 
-### Step 6: CNN Model Architecture
+This is a small step that pays for itself. You see exactly what the model sees, and you immediately notice how hard the task is at this resolution. Fear and surprise look alike. Sad and neutral blur together. If a label were obviously wrong, you would spot it here.
 
-**What it does:** Builds the Sequential Keras CNN described in the [Architecture section](#cnn-architecture) above and calls `model.summary()` to print the layer-by-layer parameter count.
+### 5. Augmentation and the final generators
 
----
+Rebuilds the loaders with rotation, zoom and horizontal flip turned on, and switches the validation split to 0.2. **This is the configuration actually used for training:** 22,968 training, 5,741 validation, 7,178 test.
 
-### Step 7: Compile and Callbacks
+A chart cell then draws a pie chart and a stacked bar showing the three-way split, with an annotation making clear that validation comes from the `/train` folder while test comes from the separate `/test` folder. Saved as `data_split_visualisation.png`.
 
-**What it does:** Compiles the model with Adam optimiser, categorical cross-entropy loss, and accuracy metric. Then defines two training callbacks:
+### 6. Split verification
 
-- **EarlyStopping** — monitors `val_loss`, stops training if no improvement over 8 epochs, restores the best weights from training
-- **ReduceLROnPlateau** — monitors `val_loss`, reduces the learning rate by 5× (factor 0.2) if stalled for 4 epochs
+Prints the composition of the validation and test sets, emotion by emotion, then compares the two file lists and counts how many paths appear in both. The answer must be zero, and it is. Without this check, a leak between validation and test would make every score meaningless and you would never know.
 
-This is the canonical callback combo for image classification. Early stopping prevents overfitting, plateau-based LR reduction helps the model escape local minima in the late stages.
+### 7. Callbacks
 
----
+Defines EarlyStopping (patience 8) and ReduceLROnPlateau (patience 4, factor 0.2), both watching validation loss.
 
-### Step 8: Model Training
+Validation loss is watched rather than validation accuracy because loss changes smoothly while accuracy jumps around, especially on imbalanced data. A smoother signal makes for better stopping decisions.
 
-**What it does:** Runs `model.fit()` for up to 55 epochs with both callbacks active.
+### 8. Build, compile and train
 
-In this run, training halted at **epoch 34** when early stopping fired, with weights restored from **epoch 26** (the validation loss minimum, 0.9671). The plateau schedule reduced the learning rate three times: to 2×10⁻⁴ at epoch 14, 4×10⁻⁵ at epoch 25, and 8×10⁻⁶ at epoch 30. The first reduction produced the clearest single improvement in the run, with validation accuracy rising from 58.37% to 61.91% within one epoch, indicating the model had been oscillating rather than converging at the initial rate. Subsequent reductions yielded little further gain.
+Builds the CNN described above, prints the layer-by-layer summary, compiles with Adam and categorical cross-entropy, then runs `model.fit()` for up to 55 epochs.
 
-A hyperparameter audit cell follows immediately after, printing every choice (batch size, image size, epochs, optimiser, augmentation settings, callback patience, architecture summary) so the notebook is self-documenting when shared or published.
+A hyperparameter audit cell follows, printing every single setting used. This means anyone reading the published notebook can see the full configuration without reverse-engineering it from the code.
 
----
+### 9. Training performance charts
 
-### Step 9: Training Performance Analysis
+Draws a three-panel figure, saved as `training_performance.png`:
 
-**What it does:** Plots a **three-panel training performance figure**:
+1. Training and validation **accuracy** across epochs
+2. Training and validation **loss** across epochs
+3. The **gap** between training and validation accuracy, with a zero line for reference
 
-1. **Accuracy over epochs** — training vs validation accuracy curves
-2. **Loss over epochs** — training vs validation loss curves
-3. **Overfitting gap** — training accuracy minus validation accuracy, with a zero-reference line
+Panel 3 is the overfitting detector. A gap that stays small and flat is healthy. A gap that widens steadily means the model is memorising.
 
-The third panel is the tell-tale overfitting indicator. A healthy model keeps the gap small throughout training. A model that overfits shows the gap widening after the midpoint.
+### 10. Evaluation
 
-At the selected epoch, training accuracy was **68.10%** against validation accuracy **64.17%**, a gap of **3.93 points**. The gap panel shows two early transients at epochs 2 and 7 before settling near four points, indicating the divergence was controlled rather than progressive — mild overfitting that early stopping caught before it widened.
+Three things happen here:
 
----
+- A **four-panel evaluation figure** (`comprehensive_evaluation.png`): raw confusion matrix, percentage confusion matrix, per-emotion F1 bars with the macro average marked, and an overall metrics summary
+- A **full classification report** with precision, recall and F1 for every emotion
+- **`model.evaluate()`** on the test set for the final headline figures
 
-### Step 10: Confusion Matrix and Metrics
+### 11. Qualitative check on 200 random images
 
-**What it does:** Produces a comprehensive **four-panel evaluation figure** on the test set:
+Picks 200 test images at random without replacement, seeded at 42, and draws them in a 10 by 20 grid. Each image is titled with its true label, the model's prediction and the confidence percentage. Green title for correct, red for wrong. Saved as `200_test_predictions.png`.
 
-1. **Raw confusion matrix** (counts) — heatmap showing exact sample counts per true-predicted pair
-2. **Normalised confusion matrix** (row percentages) — heatmap showing what percentage of each true class was predicted as each label
-3. **Per-class F1 score bar chart** — with a horizontal line showing the macro-F1 average, so you can see which classes drag the mean down
-4. **Overall metrics summary** — horizontal bar chart showing Accuracy, Macro F1, Weighted F1, Macro Precision, and Macro Recall
+**Result: 129 of 200 correct, which is 64.5%.**
 
-A full `classification_report` is printed below with per-class precision, recall, F1, and support.
+That is slightly below the 66.45% full-test figure, and it is worth checking whether the difference means anything. It does not. Drawing 200 images from a pool of 7,178 containing 4,770 correct predictions gives an expected count of 132.9 with a standard deviation of 6.58, so 129 sits **0.59 standard errors below expectation**. That is comfortably within normal sampling variation, so this grid is a representative sample and you can trust your visual impression of it.
 
-**Why macro F1 matters:** Macro F1 averages F1 across all classes with equal weight, treating Disgust (minority) as equally important as Happy (majority). Accuracy and weighted F1 can both be gamed by ignoring minority classes. Macro F1 cannot.
+This is worth doing every time. A 200 image sample carries a 95% confidence interval of roughly 13 points, so an unlucky draw can easily look like a broken model. The panels of a dozen images common in papers are far wider still, and without a check like this the reader has no way to know.
 
 ---
 
-### Step 11: Test Set Evaluation
+## What actually happened during training
 
-**What it does:** Runs `model.evaluate(test_generator)` to produce the final headline test accuracy and loss numbers. Clean, simple, final.
+Training ran the **full 55 epochs**. Early stopping fired on the last epoch, having gone 8 epochs without improvement, and **restored the weights from epoch 47**, which had the lowest validation loss of 0.9418.
 
-Result: **66.15% accuracy, 0.9465 loss** over 7,178 held-out images.
+The learning rate was cut five times as validation loss plateaued:
 
----
+| Epoch | New learning rate | Effect |
+|-------|-------------------|--------|
+| 25 | 0.0002 | The clearest single improvement of the run. Validation accuracy rose from 62.15% to 64.19% in one epoch and validation loss fell from 1.0256 to 0.9701. The model had been oscillating rather than converging at the original rate. |
+| 33 | 0.00004 | Small further gain |
+| 46 | 0.000008 | Produced the best epoch, 47 |
+| 51 | 0.0000016 | No meaningful gain |
+| 55 | 0.00000032 | No meaningful gain, training stopped |
 
-### Step 12: Qualitative Inference on 200 Random Images
+### Was it overfitting?
 
-**What it does:** Samples 200 random images from the test set (without replacement, seeded at 42 for reproducibility) and produces a **10×20 grid** showing each image with:
+At the selected epoch 47, training accuracy was about **72.08%** against validation accuracy **66.28%**, a gap of roughly **5.8 points**.
 
-- Its true class label
-- The model's predicted label
-- The prediction confidence percentage
-- A green title for correct predictions, red for incorrect
+That is mild and controlled. Some gap is always expected, because the model has seen the training images many times. A gap that stays stable rather than growing means dropout, batch normalisation and augmentation were doing their jobs, and early stopping caught the run before it deteriorated.
 
-At the end, a summary prints how many of the 200 were correctly predicted.
-
-**In this run, 118 of 200 were correct — an agreement rate of 59.0% (95% CI 52.3–65.7%).** That is lower than the 66.15% aggregate, and the discrepancy is worth stating rather than glossing over. Under hypergeometric sampling from a population of 7,178 images containing 4,748 correct predictions, the expected count is 132.3 with a standard deviation of 6.60, placing the observed value **2.17 standard errors below the aggregate** (p ≈ 0.03).
-
-In plain terms: the audit sample ran modestly unlucky. The consequence is specific — the grid's apparent error rate should not be read as the model's error rate, for which the 7,178-image aggregate is the authoritative estimate. Had the grid been displayed without this check, a reader forming an impression of roughly 59% performance would have formed a false one.
-
-This is also an argument against the small qualitative panels common in the applied FER literature. At n=200 the confidence interval already spans 13.4 points; at the panel sizes typically published it is wider still, and without a representativeness test the reader has no way to know.
-
-Two patterns are visible in the grid itself. High-confidence errors cluster on the class pairs the confusion matrix identifies rather than distributing uniformly, indicating systematic rather than random failure. And a subset of misclassified images appear arguably mislabelled in the source data, consistent with FER2013's known label noise.
+Note: per-epoch training accuracy figures come from the Keras progress log, which reports a running average across the epoch, so they can differ by a few tenths of a point from the stored history values.
 
 ---
 
-## Key Design Decisions
+## Results in detail
 
-A handful of deliberate choices make this baseline strong despite FER2013's difficulty.
+Everything below was read from the stored outputs of this notebook, or worked out arithmetically from the classification report and the class counts. Nothing is estimated.
 
-| Decision | Choice | Why |
-|----------|--------|-----|
-| **Architecture** | Three-block VGG-style CNN, trained from scratch | Simpler than ResNet or EfficientNet, easier to explain in a teaching context, and still reaches competitive FER2013 numbers |
-| **Colour mode** | Grayscale only (1 channel) | FER2013 is already grayscale. Using 3-channel input would waste parameters on a synthetic colour expansion |
-| **Input size** | 48 × 48 native | Upscaling to 224×224 would not add signal, it would just add compute. The information ceiling is set by the original capture resolution |
-| **BatchNorm everywhere** | After every Conv2D and Dense (except output) | Critical for training-from-scratch stability on a modestly-sized dataset |
-| **Dropout schedule** | 0.25 after conv blocks, 0.5 before the classifier | Heavier regularisation at the FC head where parameters and overfitting risk concentrate |
-| **No class weights** | Not used, despite strong imbalance | Augmentation + BatchNorm + dropout provide sufficient regularisation. Class weights were tested separately and introduced instability without meaningful F1 improvement |
-| **Best metric** | Macro F1 (primary), accuracy (secondary) | Macro F1 honestly reflects minority class (Disgust, Fear) performance |
-| **Early stopping metric** | val_loss, not val_accuracy | Loss is smoother and less noisy than accuracy on an imbalanced dataset |
-| **LR reduction** | Factor 0.2, patience 4 | Aggressive 5× cut triggered before early stopping kicks in. Gives the model a chance to recover before giving up |
-| **Seed** | 42 for train/val sampling and the 200-image inference grid | Reproducibility for paper submission and dissertation appendices |
-| **Audit representativeness test** | Computed before interpreting the 200-image grid | An audit reported without a representativeness test is a rhetorical device, not evidence |
+### Per-emotion performance
+
+| Emotion | Precision | Recall | F1 | Test images |
+|---------|-----------|--------|-----|-------------|
+| Angry | 0.556 | 0.622 | 0.587 | 958 |
+| Disgust | 0.774 | 0.432 | 0.555 | 111 |
+| Fear | 0.563 | **0.368** | **0.445** | 1,024 |
+| Happy | 0.880 | 0.870 | **0.875** | 1,774 |
+| Neutral | 0.569 | 0.724 | 0.637 | 1,233 |
+| Sad | 0.557 | 0.535 | 0.546 | 1,247 |
+| Surprise | 0.756 | 0.776 | 0.766 | 831 |
+| **Macro average** | **0.665** | **0.618** | **0.630** | 7,178 |
+| Weighted average | 0.666 | 0.665 | 0.660 | 7,178 |
+
+**The spread is the real finding.** Happy reaches F1 0.875 and surprise 0.766, both well above the overall figure. Fear sits at 0.445 and disgust at 0.555. Fear recall of 0.368 means the model **misses nearly two thirds of fearful faces**. Reporting only the 66.45% headline would hide that completely.
+
+### How often each emotion was predicted
+
+These counts follow exactly from the precision, recall and support figures above, and they sum to 7,178 as they must.
+
+| Emotion | Times predicted | Times it truly occurred | Ratio | Reading |
+|---------|-----------------|-------------------------|-------|---------|
+| Disgust | 62 | 111 | 0.56 | Heavily under-predicted |
+| Fear | 670 | 1,024 | 0.65 | Heavily under-predicted |
+| Sad | 1,197 | 1,247 | 0.96 | Balanced |
+| Happy | 1,755 | 1,774 | 0.99 | Balanced |
+| Surprise | 853 | 831 | 1.03 | Balanced |
+| Angry | 1,072 | 958 | 1.12 | Over-predicted |
+| Neutral | 1,569 | 1,233 | 1.27 | Over-predicted |
+
+The two over-predicted labels are absorbing the missing mass. Neutral picks up 676 false positives and angry 530, which is where the missed fear and disgust faces end up going. The exact destination of every error is shown in the confusion matrix panel of `comprehensive_evaluation.png`.
+
+### Two different failure modes, not one
+
+It is tempting to blame all of this on disgust simply having too few examples. The numbers do not support such a simple story.
+
+The rank correlation between how many training images an emotion has and how well the model recalls it is **rho = 0.43 (p = 0.34, n = 7)**. That is a weak, statistically insignificant association, and two emotions contradict it outright:
+
+- **Surprise** is the second rarest emotion but achieves the second highest recall
+- **Fear** is the third most common but has the lowest recall of all
+
+Comparing precision against recall separates the two mechanisms:
+
+**Disgust looks like scarcity.** The model uses the label only 62 times where 111 images carry it, but when it does commit, it is right about 77% of the time. High precision with low recall is the classic fingerprint of an under-trained class: with so few examples contributing to the loss, the model has drawn a cautious boundary and only says "disgust" when the evidence is overwhelming. This is exactly the failure that class weighting or focal loss is designed to fix.
+
+**Fear looks like confusability.** Fear is under-predicted too, but its precision is also poor at 0.563, so the errors run in both directions. The model both misses fearful faces and wrongly calls other faces fearful. With 4,097 training images available, scarcity cannot be the explanation. This looks like genuine visual ambiguity at 48x48 pixels, where a wide-eyed fearful expression and a wide-eyed surprised one are only a few pixels apart.
+
+**Why this distinction matters practically:** one fix will not address both. Rebalancing the classes should help disgust while leaving fear roughly where it is. Fear needs either higher resolution inputs or an architecture that separates confusable expressions better, such as attention modules. Fear therefore makes a useful control variable: if you add class weighting and fear improves as much as disgust, this two-mechanism reading is wrong.
 
 ---
 
-## Results
+## Why accuracy on its own would mislead you
 
-All figures below were read from the stored outputs of the published notebook, or derived arithmetically from the classification report and the class counts above.
+Here is a concrete demonstration, using only public properties of the test set.
 
-### Test Set Performance
+Overall accuracy is the support-weighted average of per-class recall. So the highest accuracy you could reach while completely failing on a group of classes is one minus their combined share of the test set.
 
-Evaluated on the full held-out test directory, 7,178 images never touched during training, hyperparameter selection or early stopping.
+Take the three smallest classes: disgust (111), surprise (831) and angry (958). Together they are 26.47% of the test set. **A model that recognised no anger, no disgust and no surprise at all could still score 73.53%.**
 
-| Metric | Value |
-|--------|-------|
-| **Overall Accuracy** | **66.15%** |
-| 95% Confidence Interval | [65.06%, 67.24%] |
-| Test Loss | 0.9465 |
-| **Macro F1** | **0.6202** |
-| Weighted F1 | 0.6572 |
-| Macro Precision | 0.6696 |
-| Macro Recall (balanced accuracy) | 0.6049 |
+That figure is higher than the 73.28% published for a carefully tuned VGGNet on this benchmark. In a league table sorted by accuracy, a model blind to three of the seven emotions would outrank a genuine state of the art system.
 
-### The Cost of Aggregation
+This is why the repository leads with macro F1 and balanced accuracy.
+
+### The cost of aggregation, measured
 
 | Quantity | Value |
 |----------|-------|
-| Accuracy − balanced accuracy | **5.66 points** |
-| Accuracy − macro F1 | 4.13 points |
-| Weighted F1 − macro F1 | 0.037 |
+| Accuracy minus balanced accuracy | **4.62 points** |
+| Accuracy minus macro F1 | 3.43 points |
+| Weighted F1 minus macro F1 | 0.030 |
 
-Balanced accuracy weights every class equally while accuracy weights by support, so the 5.66-point difference is precisely the portion of the headline figure attributable to the test distribution rather than to competence spread evenly across the task. That gap is **wider than the 95% confidence interval on the accuracy estimate itself**, which is the clearest possible argument for reporting both.
+The 4.62 point gap is larger than the entire 95% confidence interval around the accuracy estimate, which is about 2.2 points wide. In other words, the distortion from ignoring class balance is bigger than the measurement uncertainty. That is the clearest argument for reporting both.
 
-### Generalisation Check
+### A quick check that the test set stayed clean
 
 | Quantity | Value |
 |----------|-------|
-| Validation accuracy (epoch 26) | 64.17% |
-| Test accuracy | 66.15% |
-| **Test − validation** | **+1.98 points** |
-| Training accuracy (epoch 26) | 68.10% |
-| Training − validation | 3.93 points |
+| Validation accuracy at epoch 47 | 66.28% |
+| Test accuracy | 66.45% |
+| **Test minus validation** | **+0.17 points** |
 
-The **sign** of the test-minus-validation difference is the thing to look at. Contamination of a test estimate through model selection manifests as validation *optimism*: a selected checkpoint looks better on the data used to select it than on data it has never influenced. Here the opposite is observed. The validation estimate was conservative rather than inflated, which is the signature of a protocol in which model selection could not reach the test partition.
+The sign here is what matters. If model selection had leaked into the test set, you would expect validation to look **better** than test, because the checkpoint was chosen using validation data. The opposite is observed, by a small margin. The validation estimate was very slightly conservative, which is what a clean protocol looks like.
 
-### Per-Class Performance
+---
 
-| Emotion | Precision | Recall | F1 | Test Support | Train Support |
-|---------|-----------|--------|------|--------------|---------------|
-| Angry | 0.539 | 0.635 | 0.583 | 958 | 3,995 |
-| Disgust | 0.796 | 0.351 | 0.488 | 111 | 436 |
-| Fear | 0.579 | 0.371 | **0.452** | 1,024 | 4,097 |
-| Happy | 0.866 | 0.870 | **0.868** | 1,774 | 7,215 |
-| Neutral | 0.575 | 0.696 | 0.630 | 1,233 | 4,965 |
-| Sad | 0.541 | 0.553 | 0.547 | 1,247 | 4,830 |
-| Surprise | 0.790 | 0.758 | 0.774 | 831 | 3,171 |
-| **Macro avg** | **0.670** | **0.605** | **0.620** | **7,178** | **28,709** |
-| **Weighted avg** | 0.665 | 0.662 | 0.657 | 7,178 | 28,709 |
-
-The spread is the substantive finding. Happy reaches F1 0.868 and Surprise 0.774, both well above the aggregate. At the other end, Fear attains 0.452 and Disgust 0.488, with Disgust recall at 0.351 — meaning roughly **two-thirds of disgust images are missed**. Reporting accuracy alone would overstate this model's class-balanced capability by more than five points.
-
-Note also that the entire difference between this model's Disgust performance and *complete failure on the class* is 0.55 accuracy points. Disgust is simultaneously the model's clearest fairness deficit and the one least visible in its headline number.
-
-### Two Failure Mechanisms, Not One
-
-It is tempting to attribute all minority failure to scarcity of training data. The measurements do not support so simple a story. Rank correlation between training support and per-class recall is ρ = 0.536 (p = 0.215, n = 7) — a moderate association that does not reach significance, and which two classes contradict outright. Surprise is the second smallest class yet attains the second highest recall. Fear is the third largest yet attains the second lowest.
-
-The **precision–recall asymmetry** separates the two mechanisms:
-
-| Class | Times Predicted | True Count | Pred / True | Mechanism |
-|-------|-----------------|------------|-------------|-----------|
-| Disgust | 49 | 111 | 0.44 | **Under-prediction (scarcity)** |
-| Fear | 656 | 1,024 | 0.64 | **Confusability** |
-| Surprise | 797 | 831 | 0.96 | Balanced |
-| Happy | 1,782 | 1,774 | 1.00 | Balanced |
-| Sad | 1,273 | 1,247 | 1.02 | Balanced |
-| Angry | 1,129 | 958 | 1.18 | Over-prediction |
-| Neutral | 1,492 | 1,233 | 1.21 | Over-prediction |
-| **Total** | **7,178** | **7,178** | **1.00** | |
-
-**Disgust — scarcity.** The model emits the label only 49 times where 111 images carry it, under-predicting by more than half, but is right on four-fifths of those emissions. Low recall with high precision is the classical signature of scarcity: the decision boundary has been drawn conservatively because the class contributed little to the loss, so the model commits to it only when the evidence is strong. This is the failure mode class weighting and focal loss are designed to correct.
-
-The confusion matrix sharpens the account. Of the 72 misclassified Disgust images, **51 (70.8%) are assigned to Angry alone**. As a proportion of the class, Disgust is labelled Angry **45.95%** of the time against a correct-label rate of 35.14% — so the model routes a disgust expression to Angry more often than it recognises it. The two categories are adjacent in both valence and facial action, and Angry carries nine times the training support, so the boundary between them sits well inside the region Disgust occupies. The displaced mass is visible on the other side of the ledger: Angry accumulates 521 false positives and is over-predicted at 1.18. Scarcity does not merely suppress a class; it determines which neighbour absorbs it.
-
-**Fear — confusability.** Fear behaves differently. It is under-predicted (0.64) but its precision is also low (0.579), so the errors are bidirectional: the model both misses Fear images and misapplies the label. With 4,097 training images available, scarcity cannot be the explanation. The confusion structure shows the mass displaced toward Sad (22.66%), Angry (15.53%) and Neutral (12.99%), spread across three destinations rather than concentrated in one, which is consistent with genuine visual ambiguity at 48×48 resolution rather than with insufficient data.
-
-**The practical consequence:** a single mitigation would not address both. Rebalancing would likely improve Disgust while leaving Fear largely untouched, since the latter requires either higher input resolution or representations that better separate confusable expressions. Measurement of this kind is what makes the distinction visible; an aggregate accuracy figure would not have separated them.
-
-### Where the Errors Actually Went
-
-Row-normalised confusion matrix, correct-class recall on the diagonal:
-
-| True ↓ / Predicted → | Angry | Disgust | Fear | Happy | Neutral | Sad | Surprise |
-|----------------------|-------|---------|------|-------|---------|-----|----------|
-| **Angry** | **63.47%** | 0.63% | 6.58% | 2.92% | 12.00% | 12.42% | 1.98% |
-| **Disgust** | 45.95% | **35.14%** | 5.41% | 1.80% | 3.60% | 7.21% | 0.90% |
-| **Fear** | 15.53% | 0.00% | **37.11%** | 3.03% | 12.99% | 22.66% | 8.69% |
-| **Happy** | 2.42% | 0.11% | 1.18% | **87.03%** | 5.75% | 2.09% | 1.41% |
-| **Neutral** | 5.76% | 0.00% | 3.65% | 6.16% | **69.59%** | 13.46% | 1.38% |
-| **Sad** | 12.75% | 0.16% | 6.34% | 3.93% | 20.29% | **55.25%** | 1.28% |
-| **Surprise** | 4.57% | 0.00% | 7.46% | 6.26% | 3.25% | 2.65% | **75.81%** |
-
-The largest single off-diagonal proportion is **Disgust → Angry at 45.95%**, which exceeds Disgust's own recall of 35.14%. Remaining concentrations are Fear → Sad (22.66%), Sad → Neutral (20.29%), Fear → Angry (15.53%) and Neutral → Sad (13.46%) — pairs whose distinguishing cues are least resolvable at 48×48.
-
-### Context: FER2013 Benchmark Results
+## How this compares to published work
 
 | System | Approach | Accuracy |
 |--------|----------|----------|
-| Uniform random baseline | Distribution property | 14.29% |
-| Majority-class baseline | Distribution property | 24.71% |
-| **This work — balanced accuracy** | *class-balanced view* | **60.49%** |
-| Human annotators (Goodfellow et al.) | — | 65 ± 5% |
-| **This work — accuracy** | 3-block CNN, from scratch | **66.15%** |
-| Tang (2013) | CNN with L2-SVM objective | 71.16% |
-| Khaireddin & Chen (2021) | Tuned VGGNet | 73.28% |
-| *Blindness ceiling* | *3 of 7 classes at zero* | *73.53%* |
-| Pramerdorfer & Kampel (2016) | CNN ensemble | 75.2% |
+| Random guessing | Property of a 7-class problem | 14.29% |
+| Always guess "happy" | Property of the test distribution | 24.71% |
+| **This model, balanced accuracy** | *class-balanced view* | **61.83%** |
+| Human annotators (Goodfellow et al., 2013) | Human baseline | 65% plus or minus 5% |
+| **This model, accuracy** | 3-block CNN trained from scratch | **66.45%** |
+| Tang (2013) | CNN with an L2-SVM objective | 71.16% |
+| Khaireddin and Chen (2021) | Heavily tuned VGGNet | 73.28% |
+| *"Blind to 3 classes" ceiling* | *Property of the test distribution* | *73.53%* |
+| Pramerdorfer and Kampel (2016) | Ensemble of CNNs | 75.2% |
 
-This model sits below the ensembled and heavily tuned systems, which is the honest position for a from-scratch model of this size without pretraining. The 66.15% figure lies wholly within the 65 ± 5% band reported for human annotators on this benchmark, which is the appropriate comparison rather than claiming parity from a point estimate.
+This model sits below the tuned and ensembled systems, which is the honest position for a single from-scratch network of this size with no pretraining. The published figures above are reported as stated in those papers and have not been independently re-run here.
 
-The table also makes the blindness ceiling concrete: it falls **between two published results**, so a model recognising none of three emotions would outrank a genuine state-of-the-art system in any league table ordered by accuracy.
-
-### What the Evidence Does Not Support
-
-Several limits deserve statement rather than burial.
-
-- **Support does not fully explain minority failure.** The rank correlation between training support and recall is ρ = 0.536 with p = 0.215, which with seven classes is a weak test. The two-mechanism account is presented as an interpretation supported by the precision–recall pattern and the confusion structure, not as a statistically established causal claim
-- **Fairness here is class-level, not demographic.** FER2013 carries no age, gender or ethnicity annotation, so the disparity metrics the fairness literature requires cannot be computed at all. A model distributing error evenly across seven emotion classes could still distribute it very unevenly across demographic groups, and nothing here would detect that
-- **This is a single run.** One seeded training run, therefore no variance estimate. Seeding makes the run reproducible; it does not make it representative of the seed distribution. The reported interval reflects test-set sampling error alone. A mean and standard deviation over several seeds would be the stronger claim
-- **The 200-image audit diverged from the aggregate.** At 2.17 standard errors the sample is marginally unrepresentative, and its use has been restricted accordingly
-- **The label ceiling is external to the model.** FER2013's known label noise means part of the residual error is irreducible, limiting what any architecture can demonstrate here and arguing for validation on relabelled or in-the-wild successors such as FER+ or AffectNet
+The 66.45% result falls inside the 65 plus or minus 5% band reported for human annotators, which is the right way to state it. Claiming "human parity" from a single point estimate would be overclaiming.
 
 ---
 
-## How to Reproduce
+## What the evidence does not support
 
-### Option 1: Run on Kaggle (Recommended)
+Worth stating openly rather than leaving buried.
 
-1. Open [Kaggle](https://www.kaggle.com/) and sign in
-2. Create a new notebook
-3. Attach the FER2013 dataset from the Kaggle data tab: search for `msambare/fer2013` and click **Add**
-4. Upload `facial-expression-recognition-with-cnn.ipynb` or copy the code cells
-5. Enable **GPU T4 x1** in notebook settings (free tier)
-6. Run all cells top to bottom
+- **Training set size does not fully explain which emotions fail.** The correlation is rho = 0.43 with p = 0.34, and with seven data points this is a weak test. The two-mechanism account is an interpretation supported by the precision and recall pattern, not a proven causal claim.
+- **The fairness discussed here is between emotion classes, not between people.** FER2013 carries no age, gender or ethnicity labels, so the disparity measures the fairness literature asks for cannot be computed at all. A model that treats all seven emotions evenly could still treat demographic groups very unevenly, and nothing in this notebook would detect it.
+- **This is one training run.** A fixed seed makes the run repeatable, but it does not make it typical. The confidence interval quoted covers test set sampling only, not run-to-run variation. Three to five seeds with a mean and standard deviation would be a much stronger claim.
+- **Part of the error is unfixable.** FER2013's known label noise sets a ceiling that no architecture can cross on this dataset. Confirming any improvement properly means testing on a relabelled or in-the-wild successor such as FER+ or AffectNet.
+- **The confusion matrix detail lives in the figure, not in this file.** Per-pair error percentages are visible in `comprehensive_evaluation.png`, and the derived prediction counts above were computed from the classification report rather than re-read from the matrix.
 
-Total runtime: approximately 30–50 minutes on a T4 GPU.
+---
 
-The global seed is fixed at 42 before model construction, and the train/validation split enumerates each class directory as a lexicographically sorted file list and slices by index. An independent party running the same code on the same data therefore obtains the same partition.
+## How to reproduce
 
-### Option 2: Run Locally
+### Option 1: Kaggle, recommended
+
+1. Sign in at [Kaggle](https://www.kaggle.com/) and create a new notebook
+2. In the data tab, search for `msambare/fer2013` and click **Add**
+3. Upload `facial-expression-recognition-with-cnn.ipynb`, or copy the cells across
+4. In notebook settings, turn on **GPU T4 x1** (free tier)
+5. Run all cells top to bottom
+
+**Expected runtime: roughly 45 to 55 minutes** on a T4. Epochs took between 40 and 56 seconds each across the 55 epoch run.
+
+The seed is fixed at 42 before the model is built, and the train/validation split slices each emotion folder's sorted file list by index, so the same code on the same data produces the same partition. Exact reproduction of the final decimal place is not guaranteed, because GPU floating point operations are not bitwise deterministic by default.
+
+### Option 2: Locally
 
 ```bash
-# Clone the repo
 git clone https://github.com/CollinsLemeke/Facial-Expression-Recognition-Model.git
 cd Facial-Expression-Recognition-Model
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Download FER2013 dataset from Kaggle
-# (You'll need a Kaggle API token — see https://www.kaggle.com/docs/api)
+# You need a Kaggle API token: https://www.kaggle.com/docs/api
 kaggle datasets download -d msambare/fer2013
 unzip fer2013.zip -d data/
 
-# Update the paths in the notebook from /kaggle/input/fer2013 to data/fer2013
-# Then run the notebook
+# Change the paths in the notebook from /kaggle/input/fer2013 to data/fer2013
 jupyter notebook facial-expression-recognition-with-cnn.ipynb
 ```
 
-### Hardware Recommendations
+### Hardware guidance
 
-- **Minimum:** CPU-only. Training will take 6–10 hours. Not recommended
-- **Recommended:** Any single modern GPU (T4, RTX 3060+, A10G). 30–50 minute training
-- **Best:** A100 or L4. 15–25 minute training
+- **CPU only:** works, but expect 6 to 10 hours. Not recommended.
+- **Any modern GPU** (T4, RTX 3060 or better, A10G): 45 to 55 minutes
+- **A100 or L4:** 15 to 25 minutes
 
 ---
 
-## Repository Structure
+## Repository structure
 
 ```
 .
-├── README.md                                            # This file
-├── facial-expression-recognition-with-cnn.ipynb        # Complete training notebook
-├── requirements.txt                                     # Python dependencies
-├── outputs/                                             # (generated)
+├── README.md
+├── facial-expression-recognition-with-cnn.ipynb
+├── requirements.txt
+├── outputs/                                  (generated when you run the notebook)
 │   ├── data_split_visualisation.png
 │   ├── training_performance.png
 │   ├── comprehensive_evaluation.png
@@ -571,7 +519,9 @@ jupyter notebook facial-expression-recognition-with-cnn.ipynb
 └── LICENSE
 ```
 
-The notebook is self-contained. Running it end-to-end produces all four output figures listed in `outputs/`, which are the plots you'd include in a paper or dissertation.
+The notebook is self-contained. Running it end to end produces all four figures, which are the ones you would put in a paper or dissertation appendix.
+
+Note that the notebook does not currently save the trained model weights. If you want to reuse the model without retraining, add `model.save('fer_cnn.keras')` after training.
 
 ---
 
@@ -587,55 +537,66 @@ scikit-learn>=1.4.0
 Pillow>=10.0.0
 ```
 
-Install with:
-
 ```bash
 pip install -r requirements.txt
 ```
 
-On Kaggle, all of these are pre-installed. No setup needed.
+On Kaggle all of these are pre-installed, so no setup is needed.
 
 ---
 
-## Limitations and Ethical Considerations
+## Limitations and ethics
 
-Facial expression recognition is a sensitive domain and FER2013 comes with real limitations that should be acknowledged before any downstream use.
+Facial expression recognition is a sensitive area. These points should be read before any use beyond research.
 
-**Dataset limitations:**
+**Dataset limitations**
 
-- Low 48×48 resolution limits the maximum achievable accuracy
-- Class imbalance (Happy has 16.55× more training samples than Disgust)
-- Dataset contains approximately 3–5% mislabelled images
-- Not demographically balanced across age, gender, or ethnicity, and carries no demographic annotation with which to check
-- Faces were web-scraped with limited consent metadata
+- 48x48 resolution caps achievable accuracy
+- Severe class imbalance, 16.55 to 1 between happy and disgust in training
+- Roughly 3 to 5% of labels are estimated to be wrong
+- No demographic annotation at all, so no fairness audit is possible on this data
+- Images were web-scraped with limited consent metadata
 
-**Ethical considerations for deployment:**
+**Ethical considerations**
 
-- **Emotion inference is not ground truth.** A model trained on captured facial expressions predicts the *visual pattern* an annotator assigned to a facial configuration, not the actual emotional state of the person. Context, culture, and individual variation make this a probabilistic inference at best. A measured balanced accuracy of 60.49%, with fewer than two in five disgust expressions recognised, is not a reliable instrument for consequential decisions
-- **Cultural bias.** Facial expression datasets skew Western in both capture and labelling conventions. Deploying a FER2013-trained model on a culturally distinct population without validation is problematic
-- **Regulatory position.** Article 5(1)(f) of Regulation (EU) 2024/1689 prohibits placing on the market or using AI systems to infer emotions of a natural person in workplace and education settings, except for medical or safety reasons; the prohibition has applied since 2 February 2025. Two applications commonly cited as motivation for FER research — classroom engagement monitoring and workplace affect analytics — therefore fall within a prohibited category in the EU, and this model must not be deployed for them
-- **Fairness.** Before any real-world deployment, the model should be audited for performance disparities across demographic groups. FER2013 forecloses that check entirely
+- **A facial expression is not an emotion.** This model predicts the label a human annotator would assign to a facial configuration. It does not detect what a person feels. Context, culture and individual differences make that a probabilistic inference at best. With balanced accuracy of 61.83% and fewer than four in ten fearful faces recognised, this is not a reliable instrument for any decision that affects someone.
+- **Cultural bias.** FER datasets skew Western in both who was photographed and how the labels were assigned. Deploying on a different population without local validation is not defensible.
+- **Regulatory position in the EU.** Article 5(1)(f) of Regulation (EU) 2024/1689 (the EU AI Act) prohibits placing on the market or using AI systems to infer emotions of a person in workplace and education settings, other than for medical or safety reasons. That prohibition has applied since 2 February 2025. Two applications often used to motivate FER research, classroom engagement monitoring and workplace affect analytics, therefore fall inside a prohibited category. This model must not be used for either.
+- **Fairness auditing is a prerequisite, not an extra.** Before any real deployment a model like this needs testing for performance gaps across demographic groups. FER2013 makes that impossible, which is itself a reason to move to a better annotated dataset.
 
-This notebook is intended for **research, education, and academic benchmarking**. It is not production-ready for any consequential deployment without substantial additional work on bias auditing, demographic fairness, and user consent frameworks.
+This notebook is intended for research, education and academic benchmarking. It is not production ready for any consequential use.
 
 ---
 
 ## Roadmap
 
-Future improvements that may land in later versions, ordered by what the results above actually justify:
+Ordered by what the results above actually justify.
 
-- **Multi-seed evaluation** — replace single-run point estimates with distributions. This is the single most valuable next step
-- **Class weighting or focal loss** — evaluated against the per-class baseline established here, with Fear serving as a control that should *not* respond if the two-mechanism account is correct
-- **Higher-resolution inputs or attention modules** — CBAM or SE blocks, targeting the confusability mechanism rather than the scarcity one
-- **Cross-dataset validation on demographically annotated corpora** — AffectNet or RAF-DB, to open the demographic fairness question FER2013 forecloses
-- **Transfer learning baselines** — VGG16, ResNet50, EfficientNet-B0 pretrained on ImageNet
-- **Test-time augmentation (TTA)** — averaging predictions across augmented views
-- **Model ensembling** — combining predictions from 3–5 independently trained models
-- **Face detection preprocessing** — integrate MTCNN or MediaPipe to crop faces more tightly before inference
-- **Real-time webcam demo** — OpenCV-based live inference script
-- **Grad-CAM visualisations** — showing which face regions drive each prediction, with the caveat that saliency localises evidence without establishing that the localised region is the model's operative reason
-- **FER+ dataset support** — FER2013's better-labelled successor
-- **Knowledge distillation** — distilling the CNN into a smaller mobile-deployable model
+1. **Save the trained model.** A one-line change that makes the run reusable.
+2. **Multi-seed evaluation.** Run three to five seeds and report mean and standard deviation instead of a single point estimate. This is the highest value next step.
+3. **Class weighting or focal loss.** Compare against the per-class baseline recorded here, using fear as a control that should *not* improve much if the two-mechanism reading is correct. Note that class weighting has not actually been tested in this notebook yet.
+4. **Attention modules (SE or CBAM) or higher resolution inputs.** Aimed at the confusability problem rather than the scarcity one.
+5. **Cross-dataset validation on AffectNet or RAF-DB.** These carry demographic annotation, which opens the fairness question FER2013 closes off.
+6. **Transfer learning baselines.** VGG16, ResNet50 or EfficientNet-B0 pretrained on ImageNet.
+7. **Test-time augmentation.** Average predictions across several augmented views of each test image.
+8. **Model ensembling.** Combine three to five independently trained models.
+9. **Face detection preprocessing.** MTCNN or MediaPipe to crop faces more tightly first.
+10. **Grad-CAM visualisations.** Show which parts of the face drive each prediction, keeping in mind that saliency shows where the evidence is, not why the model decided.
+11. **FER+ support.** FER2013's better-labelled successor.
+12. **Real-time webcam demo and knowledge distillation** into a smaller mobile-sized model.
+
+---
+
+## Which run these numbers come from
+
+Every figure in this README was taken from the stored outputs of the notebook in this repository, or derived arithmetically from them. If you retrain, the numbers will shift slightly and this file will need updating.
+
+Quick reference for the run recorded here:
+
+- 55 epochs completed, best weights restored from epoch 47
+- Validation loss at the best epoch: 0.9418
+- Test accuracy 66.45%, test loss 0.9347, macro F1 0.6302
+- 200-image qualitative grid: 129 of 200 correct
 
 ---
 
@@ -643,23 +604,19 @@ Future improvements that may land in later versions, ordered by what the results
 
 **Collins Lemeke**
 
-AI Research Engineer, Centre of Intelligence of Things, University of Greater Manchester.
+AI research and engineering. Research work with the Centre of Intelligence of Things (CIoTh), University of Greater Manchester.
 
-This project was built as part of a wider research interest in efficient, accessible computer vision and affective computing. Facial expression recognition connects directly to my other work on lightweight NLP for mental health sentiment analysis and carbon-aware model design.
+This project sits within a wider interest in efficient, accessible computer vision and affective computing, alongside work on lightweight NLP for mental health sentiment analysis and carbon-aware model design.
 
 - [Kaggle notebook](https://www.kaggle.com/code/collinslemeke/facial-expression-recognition-with-cnn)
 - [GitHub](https://github.com/CollinsLemeke)
 
-For questions, feedback, or feature requests, open a GitHub issue.
+For questions, feedback or suggestions, open a GitHub issue.
 
 ---
 
 ## License
 
-MIT License. Free to use, modify, and distribute. See [LICENSE](LICENSE) for full terms.
+MIT License. Free to use, modify and distribute. See [LICENSE](LICENSE) for the full terms.
 
-The FER2013 dataset has its own licence and terms of use, separate from this code. Please refer to the [original Kaggle dataset page](https://www.kaggle.com/datasets/msambare/fer2013) for dataset licensing details.
-
----
-
-> *Built with TensorFlow, Keras, and a lot of careful attention to the quirks of training from scratch on a small, imbalanced, low-resolution dataset.*
+The FER2013 dataset has its own licence and terms of use, separate from this code. See the [original Kaggle dataset page](https://www.kaggle.com/datasets/msambare/fer2013) for details.
