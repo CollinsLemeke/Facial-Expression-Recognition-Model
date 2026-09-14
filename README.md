@@ -604,7 +604,7 @@ Quick reference for the run recorded here:
 
 **Collins Lemeke**
 
-AI research and engineering. Research work with the Centre of Intelligence of Things (CIoTh), University of Greater Manchester.
+AI research and engineering.
 
 This project sits within a wider interest in efficient, accessible computer vision and affective computing, alongside work on lightweight NLP for mental health sentiment analysis and carbon-aware model design.
 
